@@ -43,7 +43,8 @@ def train_and_validate(X, y, ii_train, ii_test, C=1.0):
 
 def cv(X, y, k, C):
     kf = KFold(n_splits=k, shuffle=True)
-    aucs = np.array([train_and_validate(X, y, ii_train, ii_test, C) for i, (ii_train, ii_test) in enumerate(kf.split(X))])
+    aucs = np.array([train_and_validate(X, y, ii_train, ii_test, C)
+                     for i, (ii_train, ii_test) in enumerate(kf.split(X))])
     return aucs
 
 # Test the performance of a linear SVM with C = 1, in 5-fold cross-validation
@@ -115,7 +116,8 @@ def ncv(X, y, k, CC):
 
     kf = KFold(n_splits=k, shuffle=True)
     # For each fold, calculate the AUC on the test data
-    aucs = np.array([inner(X, y, ii_train, ii_test, k, CC) for i, (ii_train, ii_test) in enumerate(kf.split(X, y))])
+    aucs = np.array([inner(X, y, ii_train, ii_test, k, CC)
+                     for i, (ii_train, ii_test) in enumerate(kf.split(X, y))])
     return aucs
 
 #################################################################
