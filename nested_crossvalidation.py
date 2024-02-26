@@ -1,4 +1,4 @@
-# Load some libraries
+# Do some imports
 import numpy as np
 from sklearn.datasets import make_multilabel_classification
 from sklearn.model_selection import StratifiedKFold
