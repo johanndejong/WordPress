@@ -50,10 +50,11 @@ def cv(X, y, k, C):
     return aucs
 
 # Test the performance of a linear SVM with C = 1, in 5-fold cross-validation
-aucs_cv = cv(X, y, k=5, C=1e-2)
+aucs = cv(X, y, k=5, C=1e-2)
 
 plt.clf()
-plt.scatter(np.repeat(1, len(aucs_cv)), aucs_cv)
+plt.scatter(np.repeat(1, len(aucs)), aucs)
+plt.hlines(np.mean(aucs), xmin=0.75, xmax=1.25, color='gray', linestyle='-', label='Average (C=1)')
 plt.ylabel('AUC')
 plt.xlim((0, 2))
 plt.tick_params(axis='x', bottom=False, labelbottom=False)
@@ -93,17 +94,17 @@ def permute_and_cv(X, y, k, CC):
     # Return the max AUC across the different Cs
     return np.max(aucs)
 
-# CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-# aucs = [permute_and_cv(X, y, k=5, CC=CC) for i in np.arange(25)]
-#
-# plt.clf()
-# plt.hist(aucs, 6)
-# plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
-# plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
-# plt.xlabel('AUC')
-# plt.ylabel('Count')
-# plt.legend()
-# plt.savefig('cv_randomized.png')
+CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
+aucs = [permute_and_cv(X, y, k=5, CC=CC) for i in np.arange(25)]
+
+plt.clf()
+plt.hist(aucs, 6)
+plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
+plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
+plt.xlabel('AUC')
+plt.ylabel('Count')
+plt.legend()
+plt.savefig('cv_randomized.png')
 
 ###########################################################################
 
@@ -136,17 +137,17 @@ def permute_and_ncv(X, y, k, CC):
     # Return the max AUC across the different Cs
     return np.mean(aucs)
 
-# CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-# aucs = [permute_and_ncv(X, y, k=5, CC=CC) for i in np.arange(25)]
-#
-# plt.clf()
-# plt.hist(aucs, 6)
-# plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
-# plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
-# plt.xlabel('AUC')
-# plt.ylabel('Count')
-# plt.legend()
-# plt.savefig('ncv_randomized.png')
+CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
+aucs = [permute_and_ncv(X, y, k=5, CC=CC) for i in np.arange(25)]
+
+plt.clf()
+plt.hist(aucs, 6)
+plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
+plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
+plt.xlabel('AUC')
+plt.ylabel('Count')
+plt.legend()
+plt.savefig('ncv_randomized.png')
 
 ##############################################
 
@@ -155,7 +156,7 @@ aucs = gridsearch_ncv(X, y, k=5, CC=CC)
 
 plt.clf()
 plt.scatter(np.repeat(1, len(aucs)), aucs)
-plt.hlines(np.mean(aucs_cv), xmin=0.75, xmax=1.25, color='gray', linestyle='-', label='Average (C=1)')
+plt.hlines(np.mean(aucs), xmin=0.75, xmax=1.25, color='gray', linestyle='-', label='Average (C=1)')
 plt.ylabel('AUC')
 plt.xlim((0, 2))
 plt.tick_params(axis='x', bottom=False, labelbottom=False)
