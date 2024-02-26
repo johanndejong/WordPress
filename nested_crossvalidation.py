@@ -7,6 +7,8 @@ from sklearn.svm import SVC
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 
+np.random.seed(123)
+
 # Load and prepare the breast cancer data
 data = load_breast_cancer()
 y = data.target
@@ -14,7 +16,7 @@ X = data.data
 # This classification problem is quite easy. For illustration purposes,
 # take only a few relatively weakly correlating variables
 r = np.array([np.corrcoef(X[:,i], y)[0,1] for i in np.arange(X.shape[1])])
-jj = np.argsort(np.abs(r))[:10]
+jj = np.argsort(np.abs(r))[:5]
 X = X[:,jj]
 # For simplicity, restrict both classes to 200 samples
 ii_neg = np.random.choice(np.where(y==0)[0], 200)
@@ -76,6 +78,8 @@ plt.ylabel('AUC')
 plt.xlabel('C')
 plt.savefig('cv_for_model_selection.png')
 
+print("Optimistically biased AUC directly from CV: ", np.max(np.mean(aucs, axis=1)))
+
 ###########################################################################
 
 def permute_and_cv(X, y, k, CC):
@@ -89,21 +93,21 @@ def permute_and_cv(X, y, k, CC):
     # Return the max AUC across the different Cs
     return np.max(aucs)
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = [permute_and_cv(X, y, k=5, CC=CC) for i in np.arange(25)]
-
-plt.clf()
-plt.hist(aucs, 6)
-plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
-plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
-plt.xlabel('AUC')
-plt.ylabel('Count')
-plt.legend()
-plt.savefig('cv_randomized.png')
+# CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
+# aucs = [permute_and_cv(X, y, k=5, CC=CC) for i in np.arange(25)]
+#
+# plt.clf()
+# plt.hist(aucs, 6)
+# plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
+# plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
+# plt.xlabel('AUC')
+# plt.ylabel('Count')
+# plt.legend()
+# plt.savefig('cv_randomized.png')
 
 ###########################################################################
 
-def ncv(X, y, k, CC):
+def gridsearch_ncv(X, y, k, CC):
     def inner(X, y, ii_train, ii_test, k, CC):
         # Do a cross-validation for each C, using only the training data
         aucs = gridsearch_cv(X[ii_train,:], y[ii_train], k, CC)
@@ -128,36 +132,33 @@ def permute_and_ncv(X, y, k, CC):
     yp = np.random.permutation(y)
     # Cross-validate for each C in CC, and take the
     # average of the folds as the performance estimate
-    aucs = ncv(X, yp, k=k, CC=CC)
+    aucs = gridsearch_ncv(X, yp, k=k, CC=CC)
     # Return the max AUC across the different Cs
     return np.mean(aucs)
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = [permute_and_ncv(X, y, k=5, CC=CC) for i in np.arange(25)]
-
-plt.clf()
-plt.hist(aucs, 6)
-plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
-plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
-plt.xlabel('AUC')
-plt.ylabel('Count')
-plt.legend()
-plt.savefig('ncv_randomized.png')
+# CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
+# aucs = [permute_and_ncv(X, y, k=5, CC=CC) for i in np.arange(25)]
+#
+# plt.clf()
+# plt.hist(aucs, 6)
+# plt.axvline(x=0.5, color='gray', linestyle='-', label='Expected AUC for random classifier')
+# plt.axvline(x=np.mean(aucs), color='gray', linestyle='--', label='Observed average AUC')
+# plt.xlabel('AUC')
+# plt.ylabel('Count')
+# plt.legend()
+# plt.savefig('ncv_randomized.png')
 
 ##############################################
 
 CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs_cv = cv(X, y, k=5, C=1e-2)
-aucs_ncv = ncv(X, y, k=5, CC=CC)
-aucs = np.concatenate([aucs_cv, aucs_ncv])
+aucs = gridsearch_ncv(X, y, k=5, CC=CC)
 
 plt.clf()
-x = np.repeat([1, 2], len(aucs)/2)
-plt.scatter(x, aucs)
+plt.scatter(np.repeat(1, len(aucs)), aucs)
 plt.hlines(np.mean(aucs_cv), xmin=0.75, xmax=1.25, color='gray', linestyle='-', label='Average (C=1)')
-plt.hlines(np.mean(aucs_ncv), xmin=1.75, xmax=2.25, color='gray', linestyle='--', label='Average (Optimized by NCV)')
 plt.ylabel('AUC')
-plt.xlim((0, 3))
-plt.xticks([1, 2], ['C=0.01', 'Optimized by NCV'])
-plt.legend()
+plt.xlim((0, 2))
+plt.tick_params(axis='x', bottom=False, labelbottom=False)
 plt.savefig('ncv_for_generalization_estimation.png')
+
+print("AUC from nested cross-validation. AUC = ", np.mean(aucs))
