@@ -1,7 +1,7 @@
 # Load some libraries
 import numpy as np
-from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import KFold
+from sklearn.datasets import make_multilabel_classification
+from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.metrics import roc_auc_score
@@ -9,21 +9,16 @@ import matplotlib.pyplot as plt
 
 np.random.seed(123)
 
-# Load and prepare the breast cancer data
-data = load_breast_cancer()
-y = data.target
-X = data.data
-# This classification problem is quite easy. For illustration purposes,
-# take only a few relatively weakly correlating variables
-r = np.array([np.corrcoef(X[:,i], y)[0,1] for i in np.arange(X.shape[1])])
-jj = np.argsort(np.abs(r))[:5]
-X = X[:,jj]
-# For simplicity, restrict both classes to 200 samples
-ii_neg = np.random.choice(np.where(y==0)[0], 200)
-ii_pos = np.random.choice(np.where(y==1)[0], 200)
-ii = np.concatenate([ii_neg, ii_pos])
-X = X[ii,:]
-y = y[ii]
+# Number of folds for the cross-validation
+n_fold = 5
+# Values of C to try out with the SVM
+CC = 2**np.linspace(np.log2(1e-4), np.log2(10), 21)
+# Number of repeats to do in permutation analysis
+n_perm = 25
+
+# Generate some classification data
+X, y = make_multilabel_classification(n_samples=200, n_features=50, n_classes=2, n_labels=1)
+y = y[:,0]
 
 def train_and_validate(X, y, ii_train, ii_test, C=1.0):
     X_train = X[ii_train,:]
@@ -32,11 +27,12 @@ def train_and_validate(X, y, ii_train, ii_test, C=1.0):
     y_test = y[ii_test]
     # Scale the data
     scaler = StandardScaler()
+    # Avoid data leakage: fit scaling parameters using only X_train
     scaler.fit(X_train)
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
     # Train an SVM, excluding the fold
-    svc = SVC(C=C, kernel='linear', probability=True)
+    svc = SVC(C=C, kernel='linear', probability=True, class_weight='balanced')
     svc = svc.fit(X_train, y_train)
     # Predict the fold
     yh = svc.predict_proba(X_test)[:,1]
@@ -44,13 +40,13 @@ def train_and_validate(X, y, ii_train, ii_test, C=1.0):
     return roc_auc_score(y_test, yh)
 
 def cv(X, y, k, C):
-    kf = KFold(n_splits=k, shuffle=True)
+    kf = StratifiedKFold(n_splits=k, shuffle=True)
     aucs = np.array([train_and_validate(X, y, ii_train, ii_test, C)
-                     for i, (ii_train, ii_test) in enumerate(kf.split(X))])
+                     for i, (ii_train, ii_test) in enumerate(kf.split(X, y))])
     return aucs
 
 # Test the performance of a linear SVM with C = 1, in 5-fold cross-validation
-aucs = cv(X, y, k=5, C=1e-2)
+aucs = cv(X, y, k=n_fold, C=1.0)
 
 plt.clf()
 plt.scatter(np.repeat(1, len(aucs)), aucs)
@@ -60,6 +56,8 @@ plt.xlim((0, 2))
 plt.tick_params(axis='x', bottom=False, labelbottom=False)
 plt.savefig('cv_for_generalization_estimation.png')
 
+print("Average AUC for C=1: ", np.mean(aucs))
+
 ###########################################################################
 
 # Do the cross-validation for each C in CC
@@ -67,8 +65,7 @@ def gridsearch_cv(X, y, k, CC):
     aucs = np.array([cv(X, y, k=k, C=C) for C in CC])
     return aucs
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = gridsearch_cv(X, y, k=5, CC=CC)
+aucs = gridsearch_cv(X, y, k=n_fold, CC=CC)
 
 plt.clf()
 plt.scatter(np.repeat(CC, aucs.shape[1]).reshape(aucs.shape), aucs)
@@ -79,7 +76,7 @@ plt.ylabel('AUC')
 plt.xlabel('C')
 plt.savefig('cv_for_model_selection.png')
 
-print("Optimistically biased AUC directly from CV: ", np.max(np.mean(aucs, axis=1)))
+print("Optimistically biased AUC directly from gridsearch CV: ", np.max(np.mean(aucs, axis=1)))
 
 ###########################################################################
 
@@ -94,8 +91,7 @@ def permute_and_cv(X, y, k, CC):
     # Return the max AUC across the different Cs
     return np.max(aucs)
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = [permute_and_cv(X, y, k=5, CC=CC) for i in np.arange(25)]
+aucs = [permute_and_cv(X, y, k=n_fold, CC=CC) for i in np.arange(n_perm)]
 
 plt.clf()
 plt.hist(aucs, 6)
@@ -119,7 +115,7 @@ def gridsearch_ncv(X, y, k, CC):
         # Return the auc
         return auc
 
-    kf = KFold(n_splits=k, shuffle=True)
+    kf = StratifiedKFold(n_splits=k, shuffle=True)
     # For each fold, calculate the AUC on the test data
     aucs = np.array([inner(X, y, ii_train, ii_test, k, CC)
                      for i, (ii_train, ii_test) in enumerate(kf.split(X, y))])
@@ -137,8 +133,7 @@ def permute_and_ncv(X, y, k, CC):
     # Return the max AUC across the different Cs
     return np.mean(aucs)
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = [permute_and_ncv(X, y, k=5, CC=CC) for i in np.arange(25)]
+aucs = [permute_and_ncv(X, y, k=n_fold, CC=CC) for i in np.arange(n_perm)]
 
 plt.clf()
 plt.hist(aucs, 6)
@@ -151,8 +146,7 @@ plt.savefig('ncv_randomized.png')
 
 ##############################################
 
-CC = 2**np.linspace(np.log2(1e-3), np.log2(10), 21)
-aucs = gridsearch_ncv(X, y, k=5, CC=CC)
+aucs = gridsearch_ncv(X, y, k=n_fold, CC=CC)
 
 plt.clf()
 plt.scatter(np.repeat(1, len(aucs)), aucs)
